@@ -15,12 +15,17 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter, range_boundaries
 
 
+OPERATION_CENTER = "石家庄"
+CHUDUAN_GRADES = {"初一", "初二", "初三"}
+GAODUAN_GRADES = {"高一", "高二", "高三"}
+
 SEGMENT_GROUPS = {
-    "初中": ["初短一部", "初短二部", "初短三部", "石家庄特战队"],
-    "高中": ["小短", "高短"],
+    "初中": ["石家庄初短"],
+    "高中": ["石家庄高短"],
 }
 SEGMENTS = [seg for group in SEGMENT_GROUPS.values() for seg in group]
 CHUDUAN_SEGMENTS = set(SEGMENT_GROUPS["初中"])
+GAODUAN_SEGMENTS = set(SEGMENT_GROUPS["高中"])
 GRADE_LABEL_MAP = {
     "初阶一": "初一",
     "初阶二": "初二",
@@ -31,17 +36,10 @@ GRADE_LABEL_MAP = {
     "全部": "全年级",
 }
 SEGMENT_KEYS = {
-    "初短一部": "chuduan1",
-    "初短二部": "chuduan2",
-    "初短三部": "chuduan3",
-    "石家庄特战队": "tezhan",
-    "小短": "xiaoduan",
-    "高短": "gaoduan",
+    "石家庄初短": "chuduan",
+    "石家庄高短": "gaoduan",
 }
-SEGMENT_DISPLAY_NAMES = {
-    "石家庄特战队": "石家庄特战团",
-    "小短": "小短（小学）",
-}
+SEGMENT_DISPLAY_NAMES: Dict[str, str] = {}
 
 
 def display_segment(segment: str) -> str:
@@ -127,26 +125,24 @@ def normalize_team_name(v):
 
 
 def fill_team_for_special_units(df: pd.DataFrame) -> pd.DataFrame:
-    """石家庄特战队导出里战队常为空，用老师姓名补战队以便汇总。"""
-    if df.empty or "战队" not in df.columns or "运营中心" not in df.columns:
+    """战队为空时，用老师姓名补战队以便汇总。"""
+    if df.empty or "战队" not in df.columns:
         return df
     out = df.copy()
-    oc = out["运营中心"].astype(str).map(normalize_operation_center)
     team = out["战队"].astype(str).str.strip()
     missing = out["战队"].isna() | team.eq("") | team.eq("nan")
-    mask = missing & oc.eq("石家庄特战队")
-    if not mask.any():
+    if not missing.any():
         return out
     name_col = None
-    for c in ("老师姓名", "学习规划师姓名", "辅导姓名", "辅导老师"):
+    for c in ("老师姓名", "学习规划师姓名", "学习规划师名字", "辅导姓名", "辅导老师", "辅导名字"):
         if c in out.columns:
             name_col = c
             break
     if name_col is None:
         return out
     names = out[name_col].astype(str).str.strip()
-    valid = mask & names.ne("") & names.ne("nan")
-    out.loc[valid, "战队"] = "特战-" + names[valid]
+    valid = missing & names.ne("") & names.ne("nan")
+    out.loc[valid, "战队"] = names[valid]
     return out
 
 
@@ -239,10 +235,8 @@ def filter_chuduan_school(df: pd.DataFrame, segment: str) -> pd.DataFrame:
 
 def normalize_operation_center(oc) -> str:
     oc = "" if pd.isna(oc) else str(oc).strip()
-    if oc in ("石家庄特战团", "石家庄特战队"):
-        return "石家庄特战队"
-    if oc == "石家庄初短三部":
-        return "石家庄三部"
+    if oc.startswith(OPERATION_CENTER):
+        return OPERATION_CENTER
     return oc
 
 
@@ -297,26 +291,21 @@ def norm_school(grade, src=None, xuebu=None):
     return "其他"
 
 
-def assign_segment(oc, src, grade=None):
+def assign_segment(oc, src=None, grade=None):
     oc = normalize_operation_center(oc)
-    src = normalize_wechat_source(src)
     g = normalize_grade_label(grade)
-    # 高中/高阶：即使运营中心挂在石家庄一部/二部，也归高短
-    if is_high_school_context(src, g):
-        return "高短"
-    if oc in ("石家庄三部",):
-        return "初短三部"
-    if oc == "石家庄特战队":
-        return "石家庄特战队"
-    if oc == "石家庄一部":
-        return "初短一部"
-    if oc == "石家庄二部":
-        return "初短二部"
-    if oc == "石家庄":
-        # 新规则：石家庄中心仅全年级/全部归小短，其余石家庄全部归高短
-        if g in ("全年级", "全部"):
-            return "小短"
-        return "高短"
+    if oc != OPERATION_CENTER:
+        return "其他"
+    if g in CHUDUAN_GRADES:
+        return "石家庄初短"
+    if g in GAODUAN_GRADES:
+        return "石家庄高短"
+    src_norm = normalize_wechat_source(src) if src is not None else None
+    if g == "新兵营":
+        if src_norm == "高中":
+            return "石家庄高短"
+        if src_norm == "爱学":
+            return "石家庄初短"
     return "其他"
 
 
@@ -686,7 +675,7 @@ def rebuild_sales_display_sheet(ws, template_ws, meta):
     clear_gray_fills(ws, 4, maxr, 8)
 
 
-def apply_template_styles(output_root: Path, style_auth_template: Path, style_sales_template: Path, preserve_segment: str = "初短二部"):
+def apply_template_styles(output_root: Path, style_auth_template: Path, style_sales_template: Path, preserve_segment: str = "石家庄初短"):
     auth_wb = load_workbook(style_auth_template)
     sales_wb = load_workbook(style_sales_template)
     auth_tpl_ws = auth_wb["数据公示表"] if "数据公示表" in auth_wb.sheetnames else auth_wb[auth_wb.sheetnames[0]]
@@ -905,10 +894,10 @@ def build_metrics(bundle: DataBundle, segment: str):
 
     # 业务约束：高短不允许出现“初中/小学”学部标签，统一归并到高短
     # 这样可避免高短中出现“初中 汇总”等中间汇总行导致口径错乱。
-    if segment == "高短":
+    if segment in GAODUAN_SEGMENTS:
         for df in (sales, wechat_sum, wechat_detail, auth):
             if "学部" in df.columns:
-                df["学部"] = "高短"
+                df["学部"] = segment
 
     keys = ["学部", "年级", "战队"]
 
@@ -1270,19 +1259,19 @@ def main():
         generate_segment_reports(bundle, seg, output_root / seg, date_text)
 
     # 高短数据检阅：不得出现“初中”学部字段
-    _, _, _, _, high_func, high_online, _, _, _ = build_metrics(bundle, "高短")
+    _, _, _, _, high_func, high_online, _, _, _ = build_metrics(bundle, "石家庄高短")
     school_values = set(pd.concat([high_func["学部"], high_online["学部"]], axis=0).dropna().astype(str).tolist())
     if "初中" in school_values:
-        print("警告：高短检阅未通过，仍存在初中字段。", school_values)
+        print("警告：石家庄高短检阅未通过，仍存在初中字段。", school_values)
     else:
-        print("高短检阅通过：未出现初中字段。")
+        print("石家庄高短检阅通过：未出现初中字段。")
 
-    default_auth_tpl = output_root / "初短二部" / "石家庄-初短二部-风灵个微全天在线率&爱芯后台授权.xlsx"
-    default_sales_tpl = output_root / "初短二部" / "石家庄-初短二部-销售风灵在线率明细数据.xlsx"
+    default_auth_tpl = output_root / "石家庄初短" / "石家庄-石家庄初短-风灵个微全天在线率&爱芯后台授权.xlsx"
+    default_sales_tpl = output_root / "石家庄初短" / "石家庄-石家庄初短-销售风灵在线率明细数据.xlsx"
     auth_tpl = Path(args.style_auth_template) if args.style_auth_template else default_auth_tpl
     sales_tpl = Path(args.style_sales_template) if args.style_sales_template else default_sales_tpl
     if auth_tpl.exists() and sales_tpl.exists():
-        apply_template_styles(output_root, auth_tpl, sales_tpl, preserve_segment="初短二部")
+        apply_template_styles(output_root, auth_tpl, sales_tpl, preserve_segment="石家庄初短")
     else:
         print("警告：样式模板文件不存在，跳过套版。")
 

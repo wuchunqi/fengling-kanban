@@ -74,8 +74,7 @@ if [[ ! -f "$PKG/config.env" ]]; then
   cp "$PKG/config.env.example" "$PKG/config.env"
   echo "已创建 config.env（可按需改 PAGES_URL）"
 fi
-mkdir -p "$PKG/每日输出/初短一部" "$PKG/每日输出/初短二部" "$PKG/每日输出/初短三部" \
-  "$PKG/每日输出/石家庄特战队" "$PKG/每日输出/小短" "$PKG/每日输出/高短"
+mkdir -p "$PKG/每日输出/石家庄初短" "$PKG/每日输出/石家庄高短"
 chmod +x "$PKG/update_and_publish.sh" "$PKG/一键更新并发布.command" "$PKG/一键准备环境.command" 2>/dev/null || true
 
 # 让一键发布脚本优先用 venv 的 python
