@@ -16,7 +16,7 @@ from openpyxl.utils import get_column_letter, range_boundaries
 
 
 SEGMENT_GROUPS = {
-    "初中": ["初短一部", "初短二部", "初短三部", "郑州特战队"],
+    "初中": ["初短一部", "初短二部", "初短三部", "石家庄特战队"],
     "高中": ["小短", "高短"],
 }
 SEGMENTS = [seg for group in SEGMENT_GROUPS.values() for seg in group]
@@ -34,12 +34,12 @@ SEGMENT_KEYS = {
     "初短一部": "chuduan1",
     "初短二部": "chuduan2",
     "初短三部": "chuduan3",
-    "郑州特战队": "tezhan",
+    "石家庄特战队": "tezhan",
     "小短": "xiaoduan",
     "高短": "gaoduan",
 }
 SEGMENT_DISPLAY_NAMES = {
-    "郑州特战队": "郑州特战团",
+    "石家庄特战队": "石家庄特战团",
     "小短": "小短（小学）",
 }
 
@@ -127,14 +127,14 @@ def normalize_team_name(v):
 
 
 def fill_team_for_special_units(df: pd.DataFrame) -> pd.DataFrame:
-    """郑州特战队导出里战队常为空，用老师姓名补战队以便汇总。"""
+    """石家庄特战队导出里战队常为空，用老师姓名补战队以便汇总。"""
     if df.empty or "战队" not in df.columns or "运营中心" not in df.columns:
         return df
     out = df.copy()
     oc = out["运营中心"].astype(str).map(normalize_operation_center)
     team = out["战队"].astype(str).str.strip()
     missing = out["战队"].isna() | team.eq("") | team.eq("nan")
-    mask = missing & oc.eq("郑州特战队")
+    mask = missing & oc.eq("石家庄特战队")
     if not mask.any():
         return out
     name_col = None
@@ -239,10 +239,10 @@ def filter_chuduan_school(df: pd.DataFrame, segment: str) -> pd.DataFrame:
 
 def normalize_operation_center(oc) -> str:
     oc = "" if pd.isna(oc) else str(oc).strip()
-    if oc in ("郑州特战团", "郑州特战队"):
-        return "郑州特战队"
-    if oc == "郑州初短三部":
-        return "郑州三部"
+    if oc in ("石家庄特战团", "石家庄特战队"):
+        return "石家庄特战队"
+    if oc == "石家庄初短三部":
+        return "石家庄三部"
     return oc
 
 
@@ -301,19 +301,19 @@ def assign_segment(oc, src, grade=None):
     oc = normalize_operation_center(oc)
     src = normalize_wechat_source(src)
     g = normalize_grade_label(grade)
-    # 高中/高阶：即使运营中心挂在郑州一部/二部，也归高短
+    # 高中/高阶：即使运营中心挂在石家庄一部/二部，也归高短
     if is_high_school_context(src, g):
         return "高短"
-    if oc in ("郑州三部",):
+    if oc in ("石家庄三部",):
         return "初短三部"
-    if oc == "郑州特战队":
-        return "郑州特战队"
-    if oc == "郑州一部":
+    if oc == "石家庄特战队":
+        return "石家庄特战队"
+    if oc == "石家庄一部":
         return "初短一部"
-    if oc == "郑州二部":
+    if oc == "石家庄二部":
         return "初短二部"
-    if oc == "郑州":
-        # 新规则：郑州中心仅全年级/全部归小短，其余郑州全部归高短
+    if oc == "石家庄":
+        # 新规则：石家庄中心仅全年级/全部归小短，其余石家庄全部归高短
         if g in ("全年级", "全部"):
             return "小短"
         return "高短"
@@ -697,8 +697,8 @@ def apply_template_styles(output_root: Path, style_auth_template: Path, style_sa
     for seg in SEGMENTS:
         if preserve_segment and seg == preserve_segment:
             continue
-        auth_fp = output_root / seg / f"郑州-{seg}-风灵个微全天在线率&爱芯后台授权.xlsx"
-        sales_fp = output_root / seg / f"郑州-{seg}-销售风灵在线率明细数据.xlsx"
+        auth_fp = output_root / seg / f"石家庄-{seg}-风灵个微全天在线率&爱芯后台授权.xlsx"
+        sales_fp = output_root / seg / f"石家庄-{seg}-销售风灵在线率明细数据.xlsx"
         if auth_fp.exists():
             awb = load_workbook(auth_fp)
             rebuild_auth_public_sheet(awb["数据公示表"], auth_tpl_ws, auth_meta, seg)
@@ -868,8 +868,8 @@ def load_and_prepare(
     auth_h["老师邮箱"] = auth_h["辅导老师邮箱"]
     auth_h["老师姓名"] = auth_h["辅导名字"]
     auth_h["学部"] = [norm_school(g, "高中", x) for g, x in zip(auth_h["年级"], auth_h["学部"])]
-    # 高中授权导出里运营中心可能标成郑州一部，但口径仍按郑州高短划分
-    auth_h["分组"] = [assign_segment("郑州", "高中", g) for g in auth_h["年级"]]
+    # 高中授权导出里运营中心可能标成石家庄一部，但口径仍按石家庄高短划分
+    auth_h["分组"] = [assign_segment("石家庄", "高中", g) for g in auth_h["年级"]]
 
     auth_a = normalize_auth_export(pd.read_excel(auth_aixue_path, sheet_name="个微授权明细数据"), "爱学")
     auth_a = apply_grade_labels(auth_a)
@@ -912,10 +912,18 @@ def build_metrics(bundle: DataBundle, segment: str):
 
     keys = ["学部", "年级", "战队"]
 
-    auth_teacher_count = auth.groupby(keys, as_index=False).agg(
-        接流_auth=("老师邮箱", lambda s: s.astype(str).replace("nan", np.nan).dropna().nunique())
-    )
-    auth_metric = aggregate_auth_metrics(auth, keys)
+    if auth.empty:
+        auth_teacher_count = pd.DataFrame(columns=keys + ["接流_auth"])
+        auth_metric = pd.DataFrame(columns=keys + ["授权人数", "正常人数"])
+    else:
+        auth_teacher_count = auth.groupby(keys, as_index=False).agg(
+            接流_auth=("老师邮箱", lambda s: s.astype(str).replace("nan", np.nan).dropna().nunique())
+        )
+        auth_metric = aggregate_auth_metrics(auth, keys)
+    for frame in (auth_teacher_count, auth_metric):
+        for col in keys:
+            if col in frame.columns:
+                frame[col] = frame[col].astype(str)
     auth_agg = pd.merge(auth_teacher_count, auth_metric, on=keys, how="outer")
 
     # 个微透视：必须由“个微在线源数据”聚合得到
@@ -1199,7 +1207,7 @@ def generate_segment_reports(bundle: DataBundle, segment: str, output_dir: Path,
     auth_pvt_export["个微功能正常率"] = [safe_div(a, b) for a, b in zip(auth_pvt_export["正常人数"], auth_pvt_export["授权人数"])]
     write_raw_sheet(ws5, auth_pvt_export)
     set_col_widths(ws3, {1: 8, 2: 10, 3: 24, 4: 11, 5: 10, 6: 14, 7: 9, 8: 10, 9: 10, 10: 14, 11: 14})
-    wb1.save(output_dir / f"郑州-{segment}-风灵个微全天在线率&爱芯后台授权.xlsx")
+    wb1.save(output_dir / f"石家庄-{segment}-风灵个微全天在线率&爱芯后台授权.xlsx")
 
     # 文件2：销售在线
     wb2 = Workbook()
@@ -1212,7 +1220,7 @@ def generate_segment_reports(bundle: DataBundle, segment: str, output_dir: Path,
     ocols = ["学部", "年级", "战队", "接流人数", "电脑端全天在线人数", "电脑端全天在线率", "手机端全天在线人数", "手机端全天在线率"]
     write_online_sheet(x3, f"企微风灵全天在线情况通晒（{segment}）-{date_text}", online[ocols])
     set_col_widths(x3, {1: 8, 2: 10, 3: 24, 4: 10, 5: 12, 6: 14, 7: 12, 8: 14})
-    wb2.save(output_dir / f"郑州-{segment}-销售风灵在线率明细数据.xlsx")
+    wb2.save(output_dir / f"石家庄-{segment}-销售风灵在线率明细数据.xlsx")
 
     # 文件3：未达标
     wb3 = Workbook()
@@ -1225,7 +1233,7 @@ def generate_segment_reports(bundle: DataBundle, segment: str, output_dir: Path,
     bcols = ["学部", "年级", "战队", "辅导姓名", "企微-手机在线率", "企微-电脑在线率", "个微在线率"]
     write_bad_sheet(y3, f"风灵在线未达标名单（{segment}）-{date_text}（低价课）", bad[bcols])
     set_col_widths(y3, {1: 8, 2: 10, 3: 24, 4: 12, 5: 14, 6: 14, 7: 12})
-    wb3.save(output_dir / f"郑州-{segment}-每日风灵不在线.xlsx")
+    wb3.save(output_dir / f"石家庄-{segment}-每日风灵不在线.xlsx")
 
 
 def main():
@@ -1269,8 +1277,8 @@ def main():
     else:
         print("高短检阅通过：未出现初中字段。")
 
-    default_auth_tpl = output_root / "初短二部" / "郑州-初短二部-风灵个微全天在线率&爱芯后台授权.xlsx"
-    default_sales_tpl = output_root / "初短二部" / "郑州-初短二部-销售风灵在线率明细数据.xlsx"
+    default_auth_tpl = output_root / "初短二部" / "石家庄-初短二部-风灵个微全天在线率&爱芯后台授权.xlsx"
+    default_sales_tpl = output_root / "初短二部" / "石家庄-初短二部-销售风灵在线率明细数据.xlsx"
     auth_tpl = Path(args.style_auth_template) if args.style_auth_template else default_auth_tpl
     sales_tpl = Path(args.style_sales_template) if args.style_sales_template else default_sales_tpl
     if auth_tpl.exists() and sales_tpl.exists():

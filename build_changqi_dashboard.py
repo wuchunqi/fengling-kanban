@@ -575,7 +575,7 @@ def build_weekly_page(history: pd.DataFrame, latest_date: str) -> str:
     default_week = changqi_week_start(today).isoformat()
     history_records = prepare_changqi_history_records(weekly_history)
     build_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    title = "长期班周维度在线率看板（郑州）"
+    title = "长期班周维度在线率看板（石家庄）"
     return f"""
 <!doctype html>
 <html lang="zh-CN">
@@ -934,7 +934,7 @@ def build_weekly_page(history: pd.DataFrame, latest_date: str) -> str:
 def build_main_page(history: pd.DataFrame, latest_date: str) -> str:
     dates = latest_dates(history)
     build_stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    title = "长期班风灵在线看板（郑州）"
+    title = "长期班风灵在线看板（石家庄）"
     return f"""
 <!doctype html>
 <html lang="zh-CN">

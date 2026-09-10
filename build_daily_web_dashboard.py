@@ -712,7 +712,7 @@ def auth_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: s
 <body>
   <div class="page">
     <a class="back-link" href="../每日三表汇总看板.html">← 返回总看板</a>
-    <h1 class="main-title">个微-风灵全天在线率及爱芯授权功能正常率（郑州） {date_text}</h1>
+    <h1 class="main-title">个微-风灵全天在线率及爱芯授权功能正常率（石家庄） {date_text}</h1>
     <table class="sheet-table auth-table">
       <thead>
         <tr>
@@ -780,7 +780,7 @@ def sales_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: 
 <body>
   <div class="page">
     <a class="back-link" href="../每日三表汇总看板.html">← 返回总看板</a>
-    <h1 class="main-title">企微风灵全天在线情况通晒（郑州） {date_text}</h1>
+    <h1 class="main-title">企微风灵全天在线情况通晒（石家庄） {date_text}</h1>
     <table class="sheet-table sales-table">
       <thead>
         <tr>
@@ -857,7 +857,7 @@ def bad_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: st
 <body>
   <div class="page">
     <a class="back-link" href="../每日三表汇总看板.html">← 返回总看板</a>
-    <h1 class="main-title">风灵在线未达标名单（郑州） {date_text}</h1>
+    <h1 class="main-title">风灵在线未达标名单（石家庄） {date_text}</h1>
     <table class="sheet-table bad-table">
       <thead>
         <tr>
@@ -1244,7 +1244,7 @@ def build_weekly_page(history_df: pd.DataFrame, today: date, segments: List[str]
     const SEGMENTS = {json.dumps(segments, ensure_ascii=False)};
     const SEGMENT_KEYS = {json.dumps(SEGMENT_KEYS, ensure_ascii=False)};
     const SEGMENT_LABELS = {json.dumps({seg: display_segment(seg) for seg in segments}, ensure_ascii=False)};
-    const SEG_COLORS = {json.dumps({"初短一部": "#ef4444", "初短二部": "#8b5cf6", "初短三部": "#0891b2", "郑州特战队": "#e11d48", "小短": "#22c55e", "高短": "#f59e0b"}, ensure_ascii=False)};
+    const SEG_COLORS = {json.dumps({"初短一部": "#ef4444", "初短二部": "#8b5cf6", "初短三部": "#0891b2", "石家庄特战队": "#e11d48", "小短": "#22c55e", "高短": "#f59e0b"}, ensure_ascii=False)};
     const TODAY_WEEK = {json.dumps(default_week, ensure_ascii=False)};
 
     const charts = {{}};
@@ -1465,7 +1465,7 @@ def write_weekly_dashboard(history_df: pd.DataFrame, date_text: str) -> None:
             history_df,
             page_date,
             SEGMENTS,
-            title="周维度在线率看板（郑州）",
+            title="周维度在线率看板（石家庄）",
             back_href="每日三表汇总看板.html",
         ),
         encoding="utf-8",
@@ -1504,7 +1504,7 @@ def build_daily_hub_page(date_text: str) -> str:
 </head>
 <body>
   <div class="page">
-    <h1 class="dashboard-title">每日三表汇总看板（郑州）</h1>
+    <h1 class="dashboard-title">每日三表汇总看板（石家庄）</h1>
     <div class="dashboard-sub">{date_text}｜请选择学段进入对应看板</div>
     <div class="weekly-inline-link-wrap">
       <a class="weekly-inline-link" href="周维度在线率看板.html">每周维度在线率看板（点击进入）</a>
@@ -1514,7 +1514,7 @@ def build_daily_hub_page(date_text: str) -> str:
     <div class="hub-grid">
       <a class="hub-card hub-chuduan" href="每日三表汇总看板-初中.html">
         <h2 class="hub-card-title">初中看板</h2>
-        <p class="hub-card-desc">初短一部 · 初短二部 · 初短三部 · 郑州特战队</p>
+        <p class="hub-card-desc">初短一部 · 初短二部 · 初短三部 · 石家庄特战队</p>
       </a>
       <a class="hub-card hub-gaoduan" href="每日三表汇总看板-高中.html">
         <h2 class="hub-card-title">高中看板</h2>
@@ -1541,12 +1541,12 @@ def build_weekly_hub_page() -> str:
 <body>
   <div class="page">
     <a class="nav-link" href="每日三表汇总看板.html">← 返回每日看板</a>
-    <h1 class="dashboard-title">周维度在线率看板（郑州）</h1>
+    <h1 class="dashboard-title">周维度在线率看板（石家庄）</h1>
     <div class="dashboard-sub">请选择学段查看周维度趋势</div>
     <div class="hub-grid">
       <a class="hub-card hub-chuduan" href="周维度在线率看板-初中.html">
         <h2 class="hub-card-title">初中周维度</h2>
-        <p class="hub-card-desc">初短一部 · 初短二部 · 初短三部 · 郑州特战队</p>
+        <p class="hub-card-desc">初短一部 · 初短二部 · 初短三部 · 石家庄特战队</p>
       </a>
       <a class="hub-card hub-gaoduan" href="周维度在线率看板-高中.html">
         <h2 class="hub-card-title">高中周维度</h2>
@@ -1574,7 +1574,7 @@ def build_daily_dashboard_page(
         "初短一部": "segment-chuduan1",
         "初短二部": "segment-chuduan2",
         "初短三部": "segment-chuduan3",
-        "郑州特战队": "segment-tezhan",
+        "石家庄特战队": "segment-tezhan",
         "小短": "segment-xiaoduan",
         "高短": "segment-gaoduan",
     }
@@ -1644,9 +1644,9 @@ def main(as_of_date: str = "") -> None:
 
     for segment in SEGMENTS:
         seg_dir = OUTPUT_ROOT / segment
-        auth_file = seg_dir / f"郑州-{segment}-风灵个微全天在线率&爱芯后台授权.xlsx"
-        sales_file = seg_dir / f"郑州-{segment}-销售风灵在线率明细数据.xlsx"
-        bad_file = seg_dir / f"郑州-{segment}-每日风灵不在线.xlsx"
+        auth_file = seg_dir / f"石家庄-{segment}-风灵个微全天在线率&爱芯后台授权.xlsx"
+        sales_file = seg_dir / f"石家庄-{segment}-销售风灵在线率明细数据.xlsx"
+        bad_file = seg_dir / f"石家庄-{segment}-每日风灵不在线.xlsx"
 
         auth = load_auth_table(auth_file)
         gwei_origin = normalize_wechat_origin_for_dashboard(
@@ -1966,7 +1966,7 @@ def main(as_of_date: str = "") -> None:
         summary_rows,
         date_text,
         SEGMENTS,
-        title="每日三表汇总看板（郑州）",
+        title="每日三表汇总看板（石家庄）",
         weekly_href="周维度在线率看板.html",
     )
     DAILY_HUB_HTML.write_text(unified_page, encoding="utf-8")
