@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>风灵看板（郑州）</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f7f8fc; color: #111827; }
+    .page { max-width: 960px; margin: 0 auto; }
+    h1 { text-align: center; color: #6d28d9; font-size: 36px; margin: 0 0 8px; }
+    .sub { text-align: center; color: #64748b; margin-bottom: 28px; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 12px; padding-left: 12px; border-left: 6px solid #6d28d9; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .card { display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid #dbe2ef; border-radius: 12px; padding: 20px; transition: .2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15,23,42,.08); border-color: #93c5fd; }
+    .card-daily { border-left: 8px solid #3b82f6; }
+    .card-weekly { border-left: 8px solid #8b5cf6; }
+    .card-changqi { border-left: 8px solid #f97316; }
+    .card-changqi-week { border-left: 8px solid #22c55e; }
+    .card-stats { border-left: 8px solid #06b6d4; }
+    .card h2 { margin: 0 0 8px; font-size: 20px; color: #0f172a; }
+    .card p { margin: 0; font-size: 14px; color: #64748b; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>风灵看板（郑州）</h1>
+    <p class="sub">短期班 + 长期班 整合入口</p>
+
+    <section class="section">
+      <h2 class="section-title">短期班</h2>
+      <div class="grid">
+        <a class="card card-daily" href="每日三表汇总看板.html">
+          <h2>每日三表汇总看板</h2>
+          <p>初短一部 / 二部 / 三部 / 特战队 / 小短 / 高短 · 日维度</p>
+        </a>
+        <a class="card card-weekly" href="周维度在线率看板.html">
+          <h2>周维度在线率看板</h2>
+          <p>短期班周趋势折线图 · 周一至周日</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">长期班</h2>
+      <div class="grid">
+        <a class="card card-changqi" href="长期班风灵在线看板.html">
+          <h2>长期班风灵在线看板</h2>
+          <p>初中 / 高中 / 小学 · 分学科日维度透视</p>
+        </a>
+        <a class="card card-changqi-week" href="长期班周维度在线率看板.html">
+          <h2>长期班周维度看板</h2>
+          <p>周四至周一 · 折线图 + 分学科周汇总</p>
+        </a>
+        <a class="card card-daily" href="长期班风灵在线看板_详情/detail.html">
+          <h2>长期班不在线时段明细</h2>
+          <p>仅展示有实际不在线时段的辅导老师</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">其他</h2>
+      <div class="grid">
+        <a class="card card-stats" href="访问统计看板.html">
+          <h2>访问统计看板</h2>
+          <p>页面访问数据（需配置统计 ID）</p>
+        </a>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
