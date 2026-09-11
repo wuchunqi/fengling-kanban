@@ -135,20 +135,21 @@ else
   if [[ "$ahead_count" -gt 0 ]]; then
     echo "检测到本地有 ${ahead_count} 个未推送提交，开始 push..."
     push_ok=0
-    for attempt in 1 2 3; do
-      echo "git push 尝试 ${attempt}/3 ..."
-      if git -c http.version=HTTP/1.1 push; then
+    for attempt in 1 2 3 4 5; do
+      echo "git push 尝试 ${attempt}/5 ..."
+      if git -c http.version=HTTP/1.1 -c http.lowSpeedLimit=0 -c http.lowSpeedTime=999999 push origin main; then
         push_ok=1
         break
       fi
-      if [[ "$attempt" -lt 3 ]]; then
-        echo "push 失败，5 秒后重试..."
-        sleep 5
+      if [[ "$attempt" -lt 5 ]]; then
+        echo "push 失败，8 秒后重试..."
+        sleep 8
       fi
     done
     if [[ "$push_ok" -ne 1 ]]; then
-      echo "ERROR: git push 连续 3 次失败。数据已在本地生成，可稍后手动执行："
-      echo "  cd \"$ROOT_DIR\" && git -c http.version=HTTP/1.1 push"
+      echo "ERROR: git push 连续 5 次失败。看板已在本地生成。"
+      echo "  请双击「一键推送线上.command」或执行："
+      echo "  cd \"$ROOT_DIR\" && git -c http.version=HTTP/1.1 push origin main"
       exit 1
     fi
   else

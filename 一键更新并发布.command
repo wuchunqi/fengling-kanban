@@ -37,8 +37,9 @@ if [[ "$status" -ne 0 ]]; then
   echo "常见原因："
   echo "1) 未安装依赖: pip3 install -r requirements.txt"
   echo "2) Git 未配置用户名邮箱"
-  echo "3) 网络问题导致 push 失败（数据已本地生成，可稍后重试 push）"
+  echo "3) 网络问题导致 push 失败 → 双击「一键推送线上.command」"
   echo "4) 长期班源文件缺失: 需下载「长期班辅导风灵在线明细数据_*.xlsx」"
+  echo "5) 看板日期=源文件业务日期，不是下载日期"
   echo
   read -r -p "按回车键关闭窗口..."
   exit 1
