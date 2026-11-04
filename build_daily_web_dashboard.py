@@ -15,11 +15,15 @@ from generate_daily_reports import (
     SEGMENT_GROUPS,
     SEGMENT_KEYS,
     SEGMENT_DISPLAY_NAMES,
+    CHUDUAN_CHANNELS,
+    CHUDUAN_GRADES_LEGACY,
+    CHUDUAN_GRADE_ORDER_KEY,
     display_segment,
     expand_with_summary,
     norm_school,
     normalize_sales_export,
     normalize_wechat_export,
+    apply_stage_channel_grade,
 )
 
 
@@ -271,20 +275,26 @@ def load_auth_table(auth_file: Path) -> pd.DataFrame:
     return pd.read_excel(auth_file, sheet_name="数据公示表", header=1).dropna(how="all")
 
 
-def _grade_order_key(grade_value: object) -> int:
+def _grade_order_key(grade_value: object, order_map: Dict[str, int] | None = None) -> int:
     grade = str(grade_value or "").strip().replace(" ", "")
     base = grade.replace("汇总", "")
-    order_map = {
+    if order_map is not None:
+        return order_map.get(base, 99)
+    default_map = {
         "新兵营": 1,
         "高一": 2,
         "高二": 3,
         "高三": 4,
         "高中": 5,
     }
-    return order_map.get(base, 99)
+    return default_map.get(base, 99)
 
 
-def sort_gaoduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
+def sort_segment_auth_sales(
+    df: pd.DataFrame,
+    grade_order: Dict[str, int],
+    overall_summary_grade: str,
+) -> pd.DataFrame:
     data = df.copy().reset_index(drop=True)
     rows = []
     current_grade = ""
@@ -296,16 +306,11 @@ def sort_gaoduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
         is_summary = ("汇总" in grade_raw) or ("汇总" in team_raw)
         if is_summary:
             grade_base = grade_raw.replace("汇总", "").strip() if grade_raw else current_grade
-            kind = "overall_summary" if grade_base == "石家庄高短" else "grade_summary"
+            kind = "overall_summary" if grade_base == overall_summary_grade else "grade_summary"
             logical_grade = grade_base
         else:
             logical_grade = grade_raw if (grade_raw and grade_raw.lower() != "nan") else current_grade
             kind = "detail"
-
-        if team_raw in ("溯川向上-刘炎鹤", "薪耀巅峰-李新"):
-            logical_grade = "高二"
-            if kind == "detail":
-                row["年级"] = "高二"
 
         rows.append(
             {
@@ -319,7 +324,7 @@ def sort_gaoduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
     kind_order = {"detail": 0, "grade_summary": 1, "overall_summary": 2}
     rows.sort(
         key=lambda x: (
-            _grade_order_key(x["__grade"]),
+            _grade_order_key(x["__grade"], grade_order),
             kind_order.get(x["__kind"], 9),
             x["__idx"],
         )
@@ -331,14 +336,24 @@ def sort_gaoduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
         if item["__kind"] == "grade_summary":
             row["年级"] = f'{item["__grade"]} 汇总'
         elif item["__kind"] == "overall_summary":
-            row["年级"] = "石家庄高短 汇总"
+            row["年级"] = f"{overall_summary_grade} 汇总"
         out.append(row)
     return pd.DataFrame(out, columns=df.columns)
 
 
-def sort_gaoduan_bad(df: pd.DataFrame) -> pd.DataFrame:
+def sort_gaoduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
+    data = df.copy().reset_index(drop=True)
+    for idx, row in data.iterrows():
+        team_raw = str(row.get("战队", "") or "").strip()
+        if team_raw in ("溯川向上-刘炎鹤", "薪耀巅峰-李新"):
+            data.at[idx, "年级"] = "高二"
+    gaoduan_order = {"新兵营": 1, "高一": 2, "高二": 3, "高三": 4, "高中": 5}
+    return sort_segment_auth_sales(data, gaoduan_order, "石家庄高短")
+
+
+def sort_segment_bad(df: pd.DataFrame, grade_order: Dict[str, int]) -> pd.DataFrame:
     data = df.copy()
-    data["__grade_order"] = data["年级"].apply(_grade_order_key)
+    data["__grade_order"] = data["年级"].apply(lambda g: _grade_order_key(g, grade_order))
     data["__team_text"] = data["战队"].fillna("").astype(str)
     data["__name_text"] = data["辅导姓名"].fillna("").astype(str)
     data = data.sort_values(
@@ -347,6 +362,23 @@ def sort_gaoduan_bad(df: pd.DataFrame) -> pd.DataFrame:
         kind="mergesort",
     )
     return data.drop(columns=["__grade_order", "__team_text", "__name_text"])
+
+
+def sort_gaoduan_bad(df: pd.DataFrame) -> pd.DataFrame:
+    gaoduan_order = {"新兵营": 1, "高一": 2, "高二": 3, "高三": 4, "高中": 5}
+    return sort_segment_bad(df, gaoduan_order)
+
+
+def sort_chuduan_auth_sales(df: pd.DataFrame) -> pd.DataFrame:
+    return sort_segment_auth_sales(df, CHUDUAN_GRADE_ORDER_KEY, "初中")
+
+
+def sort_chuduan_bad(df: pd.DataFrame) -> pd.DataFrame:
+    return sort_segment_bad(df, CHUDUAN_GRADE_ORDER_KEY)
+
+
+def grade_col_title(segment_key: str) -> str:
+    return "渠道" if segment_key == "chuduan" else "年级"
 
 
 def safe_pct(v: object) -> str:
@@ -608,7 +640,7 @@ def normalize_sales_origin_for_dashboard(df: pd.DataFrame) -> pd.DataFrame:
     ]
     if is_empty_export_sheet(df):
         return pd.DataFrame(columns=roster_cols)
-    out = normalize_sales_export(df.copy())
+    out = apply_stage_channel_grade(normalize_sales_export(df.copy()))
     if "sys_source" not in out.columns:
         out["sys_source"] = out.get("系统来源", pd.Series("", index=out.index)).astype(str)
     else:
@@ -621,7 +653,7 @@ def normalize_sales_origin_for_dashboard(df: pd.DataFrame) -> pd.DataFrame:
 def normalize_wechat_origin_for_dashboard(df: pd.DataFrame) -> pd.DataFrame:
     if is_empty_export_sheet(df):
         return pd.DataFrame(columns=["学部", "年级", "战队", "辅导姓名", "风灵微信在线率"])
-    out = normalize_wechat_export(df.copy())
+    out = apply_stage_channel_grade(normalize_wechat_export(df.copy()))
     if "学部" not in out.columns:
         src = out.get("sys_source", out.get("学段", pd.Series("爱学", index=out.index))).astype(str)
         xuebu = out.get("学段", pd.Series("", index=out.index))
@@ -647,6 +679,7 @@ def group_rowspans(df: pd.DataFrame, group_cols: List[str]) -> Dict[Tuple[int, s
 
 
 def auth_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: str) -> str:
+    grade_hdr = grade_col_title(segment_key)
     cols = [
         "学部",
         "年级",
@@ -716,7 +749,7 @@ def auth_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: s
     <table class="sheet-table auth-table">
       <thead>
         <tr>
-          <th>学部</th><th>年级</th><th>战队</th><th>低价课带班</th><th>全天在线</th>
+          <th>学部</th><th>{grade_hdr}</th><th>战队</th><th>低价课带班</th><th>全天在线</th>
           <th>个微全天在线率</th><th>接流</th><th>授权人数</th><th>正常人数</th><th>爱芯个微授权率</th><th>个微功能正常率</th>
         </tr>
       </thead>
@@ -731,6 +764,7 @@ def auth_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: s
 
 
 def sales_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: str) -> str:
+    grade_hdr = grade_col_title(segment_key)
     cols = ["学部", "年级", "战队", "接流人数", "电脑端全天在线人数", "电脑端全天在线率", "手机端全天在线人数", "手机端全天在线率"]
     if df.empty:
         rows = [f'<tr><td colspan="{len(cols)}">无数据</td></tr>']
@@ -785,7 +819,7 @@ def sales_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: 
       <thead>
         <tr>
           <th rowspan="2">学部</th>
-          <th rowspan="2">年级</th>
+          <th rowspan="2">{grade_hdr}</th>
           <th rowspan="2">战队</th>
           <th rowspan="2">接流人数</th>
           <th colspan="2" class="header-blue">电脑端全天在线情况</th>
@@ -809,6 +843,7 @@ def sales_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: 
 
 
 def bad_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: str) -> str:
+    grade_hdr = grade_col_title(segment_key)
     cols = ["学部", "年级", "战队", "辅导姓名", "企微-手机在线率", "企微-电脑在线率", "个微在线率"]
     if df.empty:
         rows = [f'<tr><td colspan="{len(cols)}">无数据</td></tr>']
@@ -861,7 +896,7 @@ def bad_table_html(df: pd.DataFrame, title: str, date_text: str, segment_key: st
     <table class="sheet-table bad-table">
       <thead>
         <tr>
-          <th>学部</th><th>年级</th><th>战队</th><th>辅导姓名</th><th>企微-手机在线率</th><th>企微-电脑在线率</th><th>个微在线率</th>
+          <th>学部</th><th>{grade_hdr}</th><th>战队</th><th>辅导姓名</th><th>企微-手机在线率</th><th>企微-电脑在线率</th><th>个微在线率</th>
         </tr>
       </thead>
       <tbody>
@@ -1516,7 +1551,7 @@ def build_daily_hub_page(date_text: str) -> str:
     <div class="hub-grid">
       <a class="hub-card hub-chuduan" href="每日三表汇总看板-初中.html">
         <h2 class="hub-card-title">初中看板</h2>
-        <p class="hub-card-desc">石家庄初短 · 初一 / 初二 / 初三</p>
+        <p class="hub-card-desc">石家庄初短 · 达播 / 数学99 / 数学199 / 新兵营</p>
       </a>
       <a class="hub-card hub-gaoduan" href="每日三表汇总看板-高中.html">
         <h2 class="hub-card-title">高中看板</h2>
@@ -1548,7 +1583,7 @@ def build_weekly_hub_page() -> str:
     <div class="hub-grid">
       <a class="hub-card hub-chuduan" href="周维度在线率看板-初中.html">
         <h2 class="hub-card-title">初中周维度</h2>
-        <p class="hub-card-desc">石家庄初短 · 初一 / 初二 / 初三</p>
+        <p class="hub-card-desc">石家庄初短 · 达播 / 数学99 / 数学199 / 新兵营</p>
       </a>
       <a class="hub-card hub-gaoduan" href="周维度在线率看板-高中.html">
         <h2 class="hub-card-title">高中周维度</h2>
@@ -1829,6 +1864,26 @@ def main(as_of_date: str = "") -> None:
             sales = sort_gaoduan_auth_sales(sales)
             bad = sort_gaoduan_bad(bad)
             roster = sort_gaoduan_bad(roster)
+
+        if segment == "石家庄初短" and not sales.empty:
+            allowed_chuduan = set(CHUDUAN_CHANNELS) | set(CHUDUAN_GRADES_LEGACY) | {"新兵营"}
+            bad["__grade_clean"] = (
+                bad["年级"]
+                .astype(str)
+                .str.strip()
+                .str.replace(" ", "", regex=False)
+                .str.replace("汇总", "", regex=False)
+            )
+            before_cnt = len(bad)
+            bad = bad[bad["__grade_clean"].isin(allowed_chuduan)].copy()
+            removed_cnt = before_cnt - len(bad)
+            bad = bad.drop(columns=["__grade_clean"])
+            if removed_cnt > 0:
+                print(f"[校验] 石家庄初短不在线名单已移除异常阶段/渠道行: {removed_cnt}")
+            auth = sort_chuduan_auth_sales(auth)
+            sales = sort_chuduan_auth_sales(sales)
+            bad = sort_chuduan_bad(bad)
+            roster = sort_chuduan_bad(roster)
 
         if "日期" in bad_origin.columns:
             valid_date = bad_origin["日期"].dropna()

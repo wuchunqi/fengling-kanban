@@ -16,8 +16,15 @@ from openpyxl.utils import get_column_letter, range_boundaries
 
 
 OPERATION_CENTER = "石家庄"
-CHUDUAN_GRADES = {"初一", "初二", "初三"}
+# 初短「阶段」已改为渠道口径；保留初一/初二/初三以兼容历史源表
+CHUDUAN_CHANNEL_ORDER = ("达播", "数学99", "数学199", "新兵营")
+CHUDUAN_CHANNELS = frozenset(CHUDUAN_CHANNEL_ORDER)
+CHUDUAN_PLANNER_CHANNELS = frozenset({"达播", "数学99", "数学199"})
+CHUDUAN_GRADES_LEGACY = frozenset({"初一", "初二", "初三"})
+CHUDUAN_GRADES = CHUDUAN_CHANNELS | CHUDUAN_GRADES_LEGACY
 GAODUAN_GRADES = {"高一", "高二", "高三"}
+CHUDUAN_GRADE_ORDER_KEY = {name: idx for idx, name in enumerate(CHUDUAN_CHANNEL_ORDER, start=1)}
+CHUDUAN_GRADE_ORDER_KEY.update({"初一": 20, "初二": 21, "初三": 22})
 
 SEGMENT_GROUPS = {
     "初中": ["石家庄初短"],
@@ -186,11 +193,7 @@ def drop_wrong_grade_team_rows(df: pd.DataFrame, team_col: str = "战队", grade
 
 
 def apply_grade_labels(df: pd.DataFrame, grade_col: str = "年级") -> pd.DataFrame:
-    if df.empty or grade_col not in df.columns:
-        return df
-    out = df.copy()
-    out[grade_col] = out[grade_col].map(normalize_grade_label)
-    return out
+    return apply_stage_channel_grade(df, grade_col)
 
 
 def drop_zero_online_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -245,6 +248,42 @@ def normalize_grade_label(grade) -> str:
     return GRADE_LABEL_MAP.get(g, g)
 
 
+def normalize_channel_label(grade) -> str:
+    """统一初短渠道/阶段展示名（达播、数学99、数学199、新兵营等）。"""
+    g = normalize_grade_label(grade)
+    compact = g.replace(" ", "").replace("　", "")
+    if not compact or compact.lower() == "nan":
+        return g
+    if compact == "数学199" or ("数学" in compact and "199" in compact):
+        return "数学199"
+    if compact == "数学99" or ("数学" in compact and compact.endswith("99") and "199" not in compact):
+        return "数学99"
+    if compact == "达播" or "达播" in compact:
+        return "达播"
+    if compact == "新兵营" or "新兵营" in compact:
+        return "新兵营"
+    return g
+
+
+def apply_stage_channel_grade(df: pd.DataFrame, grade_col: str = "年级") -> pd.DataFrame:
+    """阶段/渠道字段写入年级列，并做渠道名归一化（供看板按渠道分行展示）。"""
+    if df.empty:
+        return df.copy()
+    out = df.copy()
+    if grade_col not in out.columns:
+        out[grade_col] = ""
+    if "阶段" in out.columns:
+        stage = out["阶段"].astype(str).str.strip()
+        use_stage = stage.ne("") & stage.ne("nan")
+        out.loc[use_stage, grade_col] = stage[use_stage]
+    if "渠道" in out.columns:
+        channel = out["渠道"].astype(str).str.strip()
+        use_channel = channel.ne("") & channel.ne("nan")
+        out.loc[use_channel, grade_col] = channel[use_channel]
+    out[grade_col] = out[grade_col].map(normalize_channel_label)
+    return out
+
+
 def normalize_wechat_source(src) -> str:
     s = str(src or "").strip()
     if s in ("高中", "高阶"):
@@ -263,9 +302,11 @@ def is_high_school_context(src, grade=None) -> bool:
 
 
 def norm_school(grade, src=None, xuebu=None):
-    g = normalize_grade_label(grade)
+    g = normalize_channel_label(grade)
     src_norm = normalize_wechat_source(src) if isinstance(src, str) else src
     xuebu_norm = normalize_wechat_source(xuebu) if isinstance(xuebu, str) else xuebu
+    if g in CHUDUAN_PLANNER_CHANNELS or g in CHUDUAN_GRADES_LEGACY:
+        return "初中"
     if g == "新兵营":
         if src_norm == "高中":
             return "高中"
@@ -293,10 +334,10 @@ def norm_school(grade, src=None, xuebu=None):
 
 def assign_segment(oc, src=None, grade=None):
     oc = normalize_operation_center(oc)
-    g = normalize_grade_label(grade)
+    g = normalize_channel_label(grade)
     if oc != OPERATION_CENTER:
         return "其他"
-    if g in CHUDUAN_GRADES:
+    if g in CHUDUAN_PLANNER_CHANNELS or g in CHUDUAN_GRADES_LEGACY:
         return "石家庄初短"
     if g in GAODUAN_GRADES:
         return "石家庄高短"
@@ -304,8 +345,7 @@ def assign_segment(oc, src=None, grade=None):
     if g == "新兵营":
         if src_norm == "高中":
             return "石家庄高短"
-        if src_norm == "爱学":
-            return "石家庄初短"
+        return "石家庄初短"
     return "其他"
 
 
@@ -731,11 +771,44 @@ def read_sales_detail(sales_path: Path) -> pd.DataFrame:
     )
 
 
+def build_team_channel_map(sales: pd.DataFrame) -> Dict[str, str]:
+    """从规划师/销售明细提取战队→渠道映射，用于授权/个微表年级口径对齐。"""
+    if sales.empty or "战队" not in sales.columns or "年级" not in sales.columns:
+        return {}
+    ref = sales.copy()
+    if "分组" in ref.columns:
+        ref = ref[ref["分组"].astype(str) == "石家庄初短"]
+    ref["战队"] = ref["战队"].astype(str).str.strip()
+    ref["年级"] = ref["年级"].map(normalize_channel_label)
+    ref = ref[ref["战队"].ne("") & ref["战队"].ne("nan")]
+    ref = ref[ref["年级"].isin(CHUDUAN_PLANNER_CHANNELS | {"新兵营"})]
+    if ref.empty:
+        return {}
+    mode = ref.groupby("战队")["年级"].agg(lambda s: s.mode().iloc[0] if len(s.mode()) else s.iloc[0])
+    return {str(k): normalize_channel_label(v) for k, v in mode.items()}
+
+
+def align_chuduan_grades_from_sales(df: pd.DataFrame, sales: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    team_grade = build_team_channel_map(sales)
+    if not team_grade:
+        return df
+    out = df.copy()
+    teams = out["战队"].astype(str).str.strip()
+    grades = out["年级"].astype(str).str.strip().map(normalize_channel_label)
+    legacy_or_blank = grades.isin(CHUDUAN_GRADES_LEGACY) | grades.eq("") | grades.eq("nan")
+    mask = teams.isin(team_grade.keys()) & legacy_or_blank
+    if mask.any():
+        out.loc[mask, "年级"] = teams[mask].map(team_grade).map(normalize_channel_label)
+    return out
+
+
 def normalize_sales_export(df: pd.DataFrame) -> pd.DataFrame:
     out = ensure_column(df, "年级", "阶段")
     out = ensure_column(out, "老师姓名", "学习规划师姓名")
     out = ensure_column(out, "销售邮箱", "学习规划师邮箱")
-    return out
+    return apply_stage_channel_grade(out)
 
 
 def normalize_wechat_export(df: pd.DataFrame) -> pd.DataFrame:
@@ -844,6 +917,9 @@ def load_and_prepare(
     wechat_detail["分组"] = [assign_segment(o, s, g) for o, s, g in zip(wechat_detail["运营中心"], wechat_detail["sys_source"], wechat_detail["年级"])]
     wechat_detail = wechat_detail[wechat_detail["分组"] != "其他"].copy()
 
+    wechat_sum = align_chuduan_grades_from_sales(wechat_sum, sales)
+    wechat_detail = align_chuduan_grades_from_sales(wechat_detail, sales)
+
     # 授权明细统一小时=23
     auth_h = normalize_auth_export(pd.read_excel(auth_high_path, sheet_name="个微授权明细数据"), "高中")
     auth_h = apply_grade_labels(auth_h)
@@ -879,6 +955,7 @@ def load_and_prepare(
     auth_cols = ["分组", "学部", "年级", "战队", "老师姓名", "老师邮箱", "个微授权", "整体正常", "运营中心", "日期", "小时"]
     auth_detail = pd.concat([auth_h[auth_cols], auth_a[auth_cols]], ignore_index=True)
     auth_detail = auth_detail[auth_detail["分组"] != "其他"].copy()
+    auth_detail = align_chuduan_grades_from_sales(auth_detail, sales)
     for c in ["个微授权", "整体正常"]:
         auth_detail[c] = pd.to_numeric(auth_detail[c], errors="coerce").fillna(0)
     auth_detail = dedupe_auth_detail(auth_detail)
